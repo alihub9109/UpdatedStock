@@ -1,304 +1,50 @@
-document.addEventListener('DOMContentLoaded', function () {
-    // DOM elements
-    const excelFileInput = document.getElementById('excelFile');
-    const loadBtn = document.querySelector('.file-input-btn');
-    const searchInput = document.getElementById('searchInput');
-    const stockTableBody = document.getElementById('stockTableBody');
-    const itemCountSpan = document.getElementById('itemCount');
-    const lastUpdatedSpan = document.getElementById('lastUpdated');
-    const printSelectedBtn = document.getElementById('printSelected');
-    const printModal = document.getElementById('printModal');
-    const closeModal = document.querySelector('.print-modal .close-btn');
-    const printBtn = document.getElementById('printBtn');
-    const printQRContainer = document.getElementById('printQRContainer');
-    const printQRCode = document.getElementById('printQRCode');
-    const printItemName = document.getElementById('printItemName');
+// ... (keep all your previous DOM element declarations and variable declarations)
 
-    // Scanner elements
-    const scanBtn = document.getElementById('scanBtn');
-    const scannerModal = document.getElementById('scannerModal');
-    const closeScanner = document.getElementById('closeScanner');
-    const scannerVideo = document.getElementById('scanner-video');
-    const toggleTorch = document.getElementById('toggleTorch');
-    const scannerResult = document.getElementById('scannerResult');
-    const closeScannerResult = document.getElementById('closeScannerResult');
-    const scannerCode = document.getElementById('scannerCode');
-    const scannerName = document.getElementById('scannerName');
-    const scannerQty = document.getElementById('scannerQty');
-    const scannerReserve = document.getElementById('scannerReserve');
+    // Show scanner result - UPDATED TO PROPERLY DISPLAY ITEM INFO
+    function showScannerResult(code) {
+        // Clean the code by removing any whitespace or special characters
+        const cleanCode = code.trim().toUpperCase();
+        
+        // Find the item (case-insensitive search)
+        const item = stockData.find(item => 
+            item.code.trim().toUpperCase() === cleanCode
+        );
 
-    // Global variables
-    let stockData = [];
-    let filteredData = [];
-    let selectedItem = null;
-    let scannerActive = false;
-    let stream = null;
-    let torchOn = false;
-    let useCache = true;
+        if (item) {
+            // Update scanner result display
+            scannerCode.textContent = item.code;
+            scannerName.textContent = item.name;
+            scannerQty.textContent = item.qty;
+            scannerReserve.textContent = item.reserve;
 
-    // QR Code Cache Manager with optimized storage
-    const qrCodeCache = {
-        maxItems: 200, // Maximum number of QR codes to cache
-        cachePrefix: 'qrc_',
-        cachedItems: [],
-        
-        init: function() {
-            this.cachedItems = [];
-            try {
-                Object.keys(localStorage).forEach(key => {
-                    if (key.startsWith(this.cachePrefix)) {
-                        const code = key.replace(this.cachePrefix, '');
-                        this.cachedItems.push(code);
-                    }
-                });
-            } catch (e) {
-                console.error('Cache initialization error:', e);
-                this.disableCache();
-            }
-        },
-        
-        get: function(code) {
-            if (!useCache) return null;
-            try {
-                return localStorage.getItem(this.cachePrefix + code);
-            } catch (e) {
-                console.error('Cache read error:', e);
-                return null;
-            }
-        },
-        
-        set: function(code, svg) {
-            if (!useCache) return;
+            // Highlight in table
+            searchInput.value = item.code;
+            filterItems();
+            highlightItem(item.code);
+
+            // Show the result modal
+            scannerResult.style.display = 'block';
             
-            try {
-                // If we've reached max items, remove the oldest one
-                if (this.cachedItems.length >= this.maxItems) {
-                    const oldestCode = this.cachedItems.shift();
-                    localStorage.removeItem(this.cachePrefix + oldestCode);
-                }
-                
-                localStorage.setItem(this.cachePrefix + code, svg);
-                this.cachedItems.push(code);
-            } catch (e) {
-                console.error('Cache write error:', e);
-                this.disableCache();
-            }
-        },
-        
-        clear: function() {
-            try {
-                this.cachedItems.forEach(code => {
-                    localStorage.removeItem(this.cachePrefix + code);
-                });
-                this.cachedItems = [];
-            } catch (e) {
-                console.error('Cache clear error:', e);
-            }
-        },
-        
-        disableCache: function() {
-            console.warn('Disabling QR code cache due to errors');
-            useCache = false;
-            this.clear();
-        }
-    };
-
-    // Initialize the cache
-    qrCodeCache.init();
-
-    // Event listeners
-    loadBtn.addEventListener('click', () => excelFileInput.click());
-    excelFileInput.addEventListener('change', handleFileUpload);
-    searchInput.addEventListener('input', filterItems);
-    printSelectedBtn.addEventListener('click', showPrintModal);
-    closeModal.addEventListener('click', () => printModal.style.display = 'none');
-    printBtn.addEventListener('click', printSelectedQRCode);
-    scanBtn.addEventListener('click', toggleScanner);
-    closeScanner.addEventListener('click', toggleScanner);
-    closeScannerResult.addEventListener('click', () => {
-        scannerResult.style.display = 'none';
-        if (scannerActive) {
-            startScanner();
-        }
-    });
-    toggleTorch.addEventListener('click', toggleTorchFunction);
-    window.addEventListener('click', (event) => {
-        if (event.target === printModal) {
-            printModal.style.display = 'none';
-        }
-        if (event.target === scannerModal) {
-            toggleScanner();
-        }
-    });
-
-    // Handle Excel file upload with robust error handling
-    function handleFileUpload(event) {
-        const file = event.target.files[0];
-        if (!file) return;
-
-        // Clear existing cache and data
-        qrCodeCache.clear();
-        stockData = [];
-        filteredData = [];
-        
-        const reader = new FileReader();
-
-        reader.onload = function(e) {
-            try {
-                const data = new Uint8Array(e.target.result);
-                const workbook = XLSX.read(data, { type: 'array' });
-
-                // Get first sheet
-                const firstSheetName = workbook.SheetNames[0];
-                const worksheet = workbook.Sheets[firstSheetName];
-
-                // Convert to JSON with header detection
-                const jsonData = XLSX.utils.sheet_to_json(worksheet, {
-                    raw: false,
-                    defval: "",
-                    header: detectHeaders(worksheet)
-                });
-
-                // Process data and ensure unique codes
-                const codeMap = new Map();
-                stockData = jsonData.map((item, index) => {
-                    if (!item) return null;
-                    
-                    // Normalize field names
-                    const fields = {
-                        code: String(item['Code'] || item['code'] || `ITEM-${index + 1}`).trim(),
-                        name: String(item['Name'] || item['name'] || item['Description'] || item['description'] || '').trim().replace(/\r/g, ''),
-                        qty: parseInt(item['Qty'] || item['qty'] || item['Quantity'] || item['quantity'] || 0),
-                        reserve: parseInt(item['Reserve'] || item['reserve'] || 0)
-                    };
-
-                    // Ensure code is unique
-                    if (codeMap.has(fields.code)) {
-                        fields.code = `${fields.code}-${index + 1}`;
-                    }
-                    codeMap.set(fields.code, true);
-
-                    // Validate data
-                    if (!fields.code && !fields.name) return null;
-
-                    return {
-                        code: fields.code,
-                        name: fields.name,
-                        qty: isNaN(fields.qty) ? 0 : fields.qty,
-                        reserve: isNaN(fields.reserve) ? 0 : fields.reserve,
-                        available: (isNaN(fields.qty) ? 0 : fields.qty) - (isNaN(fields.reserve) ? 0 : fields.reserve)
-                    };
-                }).filter(item => item !== null);
-
-                if (stockData.length === 0) {
-                    throw new Error('No valid data found. Please check that your Excel file has columns for Code and Name.');
-                }
-
-                filteredData = [...stockData];
-                renderTable();
-                updateStatus();
-
-            } catch (error) {
-                console.error('Error processing Excel:', error);
-                showError('Error loading Excel file: ' + (error.message || 'Invalid file format'));
-            }
-        };
-
-        reader.onerror = function() {
-            showError('Error reading file. Please try again.');
-        };
-
-        reader.readAsArrayBuffer(file);
-    }
-
-    // Helper to detect headers in worksheet
-    function detectHeaders(worksheet) {
-        const range = XLSX.utils.decode_range(worksheet['!ref']);
-        const headers = [];
-        
-        for (let C = range.s.c; C <= range.e.c; ++C) {
-            const cell = worksheet[XLSX.utils.encode_cell({r: range.s.r, c: C})];
-            headers.push(cell ? String(cell.v).trim() : '');
-        }
-        
-        return headers;
-    }
-
-    // Show error message
-    function showError(message) {
-        stockTableBody.innerHTML = `<tr><td colspan="6" class="error-message">${message}</td></tr>`;
-        itemCountSpan.textContent = '0 items loaded';
-        lastUpdatedSpan.textContent = '';
-    }
-
-    // Filter items based on search input
-    function filterItems() {
-        const searchTerm = searchInput.value.trim().toLowerCase();
-
-        if (!searchTerm) {
-            filteredData = [...stockData];
+            // Stop the scanner
+            stopScanner();
         } else {
-            // Simple contains search (faster than regex for large datasets)
-            filteredData = stockData.filter(item => 
-                item.code.toLowerCase().includes(searchTerm) || 
-                item.name.toLowerCase().includes(searchTerm)
-            );
-        }
-
-        renderTable();
-        
-        // Highlight first match if any
-        if (filteredData.length > 0) {
-            highlightItem(filteredData[0].code);
+            alert(`Product with code "${code}" not found in inventory.`);
+            // Restart the scanner
+            if (!scannerActive) {
+                startScanner();
+            }
         }
     }
 
-    // Render the table with optimized QR code generation
-    function renderTable() {
-        stockTableBody.innerHTML = '';
-
-        filteredData.forEach(item => {
-            const row = document.createElement('tr');
-            row.dataset.code = item.code;
-            row.addEventListener('click', () => selectRow(row, item));
-
-            // Create cells
-            const cells = [
-                createCell(item.code, 'Code'),
-                createCell(item.name.replace(/\n/g, '<br>'), 'Name'),
-                createCell(item.qty, 'QTY', 'numeric'),
-                createCell(item.reserve, 'Reserve', 'numeric'),
-                createCell(item.available, 'Available', 'numeric' + (item.available < 0 ? ' stock-low' : '')),
-                createQRCodeCell(item.code)
-            ];
-
-            cells.forEach(cell => row.appendChild(cell));
-            stockTableBody.appendChild(row);
-        });
-
-        // Mobile view handling
-        document.querySelector('.table-container').classList.toggle('mobile-view', window.innerWidth < 640);
-        updateStatus();
-    }
-
-    // Helper to create table cells
-    function createCell(content, label, className = '') {
-        const cell = document.createElement('td');
-        cell.textContent = content;
-        cell.setAttribute('data-label', label);
-        if (className) cell.className = className;
-        return cell;
-    }
-
-    // Create QR code cell with unique, scannable codes
+    // Update your QR code generation to ensure proper encoding
     function createQRCodeCell(code) {
         const cell = document.createElement('td');
         cell.className = 'qrcode-cell';
         cell.setAttribute('data-label', 'QR Code');
 
-        // Generate QR code with error correction
+        // Generate QR code with proper encoding
         const qr = qrcode(0, 'M'); // Medium error correction
-        qr.addData(code);
+        qr.addData(code); // Encode just the raw code without extra formatting
         qr.make();
         
         const container = document.createElement('div');
@@ -306,132 +52,66 @@ document.addEventListener('DOMContentLoaded', function () {
         container.innerHTML = qr.createSvgTag(2, 0);
         
         cell.appendChild(container);
-        
-        // Cache if possible
-        try {
-            qrCodeCache.set(code, container.outerHTML);
-        } catch (e) {
-            console.error('Failed to cache QR code:', e);
-        }
-
         return cell;
     }
 
-    // Highlight item in table
-    function highlightItem(code) {
-        document.querySelectorAll('#stockTableBody tr').forEach(row => {
-            row.classList.toggle('highlight', row.dataset.code === code);
-        });
-        
-        const row = document.querySelector(`#stockTableBody tr[data-code="${code}"]`);
-        if (row) row.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    }
-
-    // Select row
-    function selectRow(row, item) {
-        document.querySelectorAll('#stockTableBody tr').forEach(r => {
-            r.classList.remove('selected');
-        });
-        row.classList.add('selected');
-        selectedItem = item;
-    }
-
-    // Show print modal with high-quality QR code
-    function showPrintModal() {
-        if (!selectedItem) {
-            alert('Please select an item first by clicking on a row.');
-            return;
-        }
-
-        printItemName.textContent = selectedItem.name.split('\n')[0].substring(0, 20);
-        printQRCode.textContent = selectedItem.code;
-
-        // Generate high-quality QR code for printing
-        const qr = qrcode(0, 'H'); // High error correction
-        qr.addData(selectedItem.code);
-        qr.make();
-        printQRContainer.innerHTML = qr.createSvgTag(4, 0);
-
-        printModal.style.display = 'block';
-    }
-
-    // Print QR code sticker
-    function printSelectedQRCode() {
-        if (!selectedItem) return;
-
-        const printContent = `
-            <div class="sticker-container">
-                <div class="sticker-name">${selectedItem.name.split('\n')[0].substring(0, 20)}</div>
-                <div class="sticker-qrcode">
-                    ${generateQRCodeSVG(selectedItem.code, 4, 'H')}
-                </div>
-                <div class="sticker-code">${selectedItem.code}</div>
-            </div>
-        `;
-
-        const printWindow = window.open('', '_blank');
-        printWindow.document.write(`
-            <!DOCTYPE html>
-            <html>
-            <head>
-                <title>Print QR Code</title>
-                <style>
-                    @page { size: 40mm 23mm; margin: 0; }
-                    body { margin: 0; padding: 0; width: 40mm; height: 23mm; 
-                           display: flex; justify-content: center; align-items: center; 
-                           font-family: Arial, sans-serif; }
-                    .sticker-container { text-align: center; width: 100%; padding: 1mm; box-sizing: border-box; }
-                    .sticker-name { font-size: 8px; font-weight: bold; margin-bottom: 1mm; 
-                                   white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-                    .sticker-qrcode svg { width: 20mm !important; height: 20mm !important; }
-                    .sticker-code { font-size: 7px; font-family: 'Courier New', monospace; margin-top: 0.5mm; }
-                </style>
-            </head>
-            <body>${printContent}</body>
-            </html>
-        `);
-        printWindow.document.close();
-    }
-
-    // Generate QR code SVG with configurable size and error correction
-    function generateQRCodeSVG(code, size, errorCorrection = 'M') {
-        const qr = qrcode(0, errorCorrection);
-        qr.addData(code);
-        qr.make();
-        return qr.createSvgTag(size, 0);
-    }
-
-    // Scanner functions
-    function toggleScanner() {
-        if (scannerActive) {
-            stopScanner();
-            scannerModal.style.display = 'none';
-        } else {
-            scannerModal.style.display = 'block';
-            startScanner();
-        }
-    }
-
+    // Update your Quagga initialization to ensure proper scanning
     function startScanner() {
         scannerActive = true;
         scannerResult.style.display = 'none';
 
         navigator.mediaDevices.getUserMedia({
-            video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } }
+            video: { 
+                facingMode: 'environment', 
+                width: { ideal: 1280 }, 
+                height: { ideal: 720 } 
+            }
         }).then(function(s) {
             stream = s;
             scannerVideo.srcObject = stream;
             scannerVideo.play();
 
-            if (stream.getVideoTracks()[0].getCapabilities().torch) {
-                toggleTorch.style.display = 'flex';
-            }
-
+            // Initialize Quagga with proper settings for QR codes
             Quagga.init({
-                inputStream: { name: "Live", type: "LiveStream", target: scannerVideo, 
-                             constraints: { width: 1280, height: 720, facingMode: "environment" } },
-                decoder: { readers: ["code_128_reader"] },
-                locate: true
+                inputStream: {
+                    name: "Live",
+                    type: "LiveStream",
+                    target: scannerVideo,
+                    constraints: {
+                        width: 1280,
+                        height: 720,
+                        facingMode: "environment"
+                    },
+                },
+                decoder: {
+                    readers: [
+                        "code_128_reader",
+                        "ean_reader",
+                        "ean_8_reader",
+                        "code_39_reader",
+                        "code_39_vin_reader",
+                        "codabar_reader",
+                        "upc_reader",
+                        "upc_e_reader",
+                        "qrcode_reader" // Make sure QR code reader is included
+                    ],
+                    debug: {
+                        showCanvas: true,
+                        showPatches: true,
+                        showFoundPatches: true,
+                        showSkeleton: true,
+                        showLabels: true,
+                        showPatchLabels: true,
+                        showRemainingPatchLabels: true,
+                        boxFromPatches: {
+                            showTransformed: true,
+                            showTransformedBox: true,
+                            showBB: true
+                        }
+                    }
+                },
+                locate: true,
+                numOfWorkers: 4
             }, function(err) {
                 if (err) {
                     console.error(err);
@@ -442,7 +122,6 @@ document.addEventListener('DOMContentLoaded', function () {
 
             Quagga.onDetected(function(result) {
                 const code = result.codeResult.code;
-                stopScanner();
                 showScannerResult(code);
             });
         }).catch(function(err) {
@@ -453,63 +132,4 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     }
 
-    function stopScanner() {
-        scannerActive = false;
-        if (Quagga) Quagga.stop();
-        if (stream) {
-            stream.getTracks().forEach(track => track.stop());
-            stream = null;
-        }
-        toggleTorch.style.display = 'none';
-        torchOn = false;
-    }
-
-    function toggleTorchFunction() {
-        if (stream) {
-            const track = stream.getVideoTracks()[0];
-            if (track.getCapabilities().torch) {
-                torchOn = !torchOn;
-                track.applyConstraints({ advanced: [{ torch: torchOn }] }).catch(e => console.error(e));
-            }
-        }
-    }
-
-    function showScannerResult(code) {
-        const item = stockData.find(item => item.code === code);
-        if (item) {
-            scannerCode.textContent = item.code;
-            scannerName.textContent = item.name.split('\n')[0];
-            scannerQty.textContent = item.qty;
-            scannerReserve.textContent = item.reserve;
-            searchInput.value = code;
-            filterItems();
-            highlightItem(code);
-            scannerResult.style.display = 'block';
-        } else {
-            alert('Product not found: ' + code);
-            startScanner();
-        }
-    }
-
-    // Update status
-    function updateStatus() {
-        itemCountSpan.textContent = `${filteredData.length} of ${stockData.length} items`;
-        lastUpdatedSpan.textContent = `Last updated: ${new Date().toLocaleString()}`;
-    }
-
-    // Initialize with sample data (for testing)
-    function initSampleData() {
-        stockData = [
-            { code: 'TC-1001', name: 'Ceramic Tile\nWhite 30x30cm', qty: 150, reserve: 25, available: 125 },
-            { code: 'TC-1002', name: 'Porcelain Tile\nBeige 60x60cm', qty: 80, reserve: 10, available: 70 },
-            { code: 'TC-1003', name: 'Mosaic Tile\nBlue 10x10cm', qty: 200, reserve: 50, available: 150 },
-            { code: 'TC-1004', name: 'Wall Tile\nGreen 20x25cm', qty: 120, reserve: 30, available: 90 },
-            { code: 'TC-1005', name: 'Floor Tile\nGray 45x45cm', qty: 90, reserve: 15, available: 75 }
-        ];
-        filteredData = [...stockData];
-        renderTable();
-    }
-
-    // Start the application
-    initSampleData();
-});
+// ... (keep the rest of your existing code)
