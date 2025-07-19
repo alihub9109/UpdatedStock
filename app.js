@@ -36,36 +36,33 @@ document.addEventListener('DOMContentLoaded', function () {
     let torchOn = false;
     let useCache = true;
 
-    // QR Code Cache Manager with improved storage handling
+    // QR Code Cache Manager with optimized storage
     const qrCodeCache = {
-        maxCacheSize: 2 * 1024 * 1024, // 2MB limit (more conservative)
-        currentSize: 0,
-        cachePrefix: 'qrc_', // Shorter prefix to save space
+        maxItems: 200, // Maximum number of QR codes to cache
+        cachePrefix: 'qrc_',
+        cachedItems: [],
         
         init: function() {
-            this.currentSize = 0;
-            Object.keys(localStorage).forEach(key => {
-                if (key.startsWith(this.cachePrefix)) {
-                    try {
-                        const item = localStorage.getItem(key);
-                        if (item) this.currentSize += item.length;
-                    } catch (e) {
-                        console.error('Error reading cache item:', e);
-                        localStorage.removeItem(key);
+            this.cachedItems = [];
+            try {
+                Object.keys(localStorage).forEach(key => {
+                    if (key.startsWith(this.cachePrefix)) {
+                        const code = key.replace(this.cachePrefix, '');
+                        this.cachedItems.push(code);
                     }
-                }
-            });
+                });
+            } catch (e) {
+                console.error('Cache initialization error:', e);
+                this.disableCache();
+            }
         },
         
         get: function(code) {
             if (!useCache) return null;
-            
             try {
-                const cached = localStorage.getItem(this.cachePrefix + code);
-                return cached || null;
+                return localStorage.getItem(this.cachePrefix + code);
             } catch (e) {
                 console.error('Cache read error:', e);
-                this.handleCacheFull();
                 return null;
             }
         },
@@ -73,66 +70,34 @@ document.addEventListener('DOMContentLoaded', function () {
         set: function(code, svg) {
             if (!useCache) return;
             
-            // Skip if SVG is too large
-            if (svg.length > 50000) return;
-            
             try {
-                // Check if we have space
-                if (this.currentSize + svg.length > this.maxCacheSize) {
-                    this.clearOldestItems(svg.length);
+                // If we've reached max items, remove the oldest one
+                if (this.cachedItems.length >= this.maxItems) {
+                    const oldestCode = this.cachedItems.shift();
+                    localStorage.removeItem(this.cachePrefix + oldestCode);
                 }
                 
                 localStorage.setItem(this.cachePrefix + code, svg);
-                this.currentSize += svg.length;
+                this.cachedItems.push(code);
             } catch (e) {
                 console.error('Cache write error:', e);
-                this.handleCacheFull();
-            }
-        },
-        
-        clearOldestItems: function(requiredSpace) {
-            let cleared = 0;
-            const entries = [];
-            
-            // Collect all cache entries
-            Object.keys(localStorage).forEach(key => {
-                if (key.startsWith(this.cachePrefix)) {
-                    const value = localStorage.getItem(key);
-                    if (value) {
-                        entries.push({
-                            key: key,
-                            size: value.length,
-                            timestamp: parseInt(key.split('_')[1]) || 0
-                        });
-                    }
-                }
-            });
-            
-            // Sort by oldest first (by timestamp)
-            entries.sort((a, b) => a.timestamp - b.timestamp);
-            
-            // Remove oldest items until we have enough space
-            for (const entry of entries) {
-                if (cleared >= requiredSpace) break;
-                
-                localStorage.removeItem(entry.key);
-                cleared += entry.size;
-                this.currentSize -= entry.size;
+                this.disableCache();
             }
         },
         
         clear: function() {
-            Object.keys(localStorage).forEach(key => {
-                if (key.startsWith(this.cachePrefix)) {
-                    const value = localStorage.getItem(key);
-                    if (value) this.currentSize -= value.length;
-                    localStorage.removeItem(key);
-                }
-            });
+            try {
+                this.cachedItems.forEach(code => {
+                    localStorage.removeItem(this.cachePrefix + code);
+                });
+                this.cachedItems = [];
+            } catch (e) {
+                console.error('Cache clear error:', e);
+            }
         },
         
-        handleCacheFull: function() {
-            console.warn('LocalStorage quota exceeded. Disabling cache.');
+        disableCache: function() {
+            console.warn('Disabling QR code cache due to errors');
             useCache = false;
             this.clear();
         }
@@ -166,18 +131,16 @@ document.addEventListener('DOMContentLoaded', function () {
         }
     });
 
-    // Handle Excel file upload with improved error handling
+    // Handle Excel file upload with robust error handling
     function handleFileUpload(event) {
         const file = event.target.files[0];
         if (!file) return;
 
-        // Clear cache before loading new data
-        try {
-            qrCodeCache.clear();
-        } catch (e) {
-            console.error('Error clearing cache:', e);
-        }
-
+        // Clear existing cache and data
+        qrCodeCache.clear();
+        stockData = [];
+        filteredData = [];
+        
         const reader = new FileReader();
 
         reader.onload = function(e) {
@@ -196,24 +159,31 @@ document.addEventListener('DOMContentLoaded', function () {
                     header: detectHeaders(worksheet)
                 });
 
-                // Process data
-                stockData = jsonData.map(item => {
+                // Process data and ensure unique codes
+                const codeMap = new Map();
+                stockData = jsonData.map((item, index) => {
                     if (!item) return null;
                     
-                    // Normalize field names (case-insensitive)
+                    // Normalize field names
                     const fields = {
-                        code: item['Code'] || item['code'] || '',
-                        name: item['Name'] || item['name'] || item['Description'] || item['description'] || '',
+                        code: String(item['Code'] || item['code'] || `ITEM-${index + 1}`).trim(),
+                        name: String(item['Name'] || item['name'] || item['Description'] || item['description'] || '').trim().replace(/\r/g, ''),
                         qty: parseInt(item['Qty'] || item['qty'] || item['Quantity'] || item['quantity'] || 0),
                         reserve: parseInt(item['Reserve'] || item['reserve'] || 0)
                     };
 
-                    // Skip if no code or name
+                    // Ensure code is unique
+                    if (codeMap.has(fields.code)) {
+                        fields.code = `${fields.code}-${index + 1}`;
+                    }
+                    codeMap.set(fields.code, true);
+
+                    // Validate data
                     if (!fields.code && !fields.name) return null;
 
                     return {
-                        code: String(fields.code).trim(),
-                        name: String(fields.name).trim().replace(/\r/g, ''),
+                        code: fields.code,
+                        name: fields.name,
                         qty: isNaN(fields.qty) ? 0 : fields.qty,
                         reserve: isNaN(fields.reserve) ? 0 : fields.reserve,
                         available: (isNaN(fields.qty) ? 0 : fields.qty) - (isNaN(fields.reserve) ? 0 : fields.reserve)
@@ -221,7 +191,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 }).filter(item => item !== null);
 
                 if (stockData.length === 0) {
-                    throw new Error('No valid data found. Please check the Excel format.');
+                    throw new Error('No valid data found. Please check that your Excel file has columns for Code and Name.');
                 }
 
                 filteredData = [...stockData];
@@ -230,7 +200,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
             } catch (error) {
                 console.error('Error processing Excel:', error);
-                showError('Error loading Excel: ' + (error.message || 'Invalid file format'));
+                showError('Error loading Excel file: ' + (error.message || 'Invalid file format'));
             }
         };
 
@@ -314,33 +284,26 @@ document.addEventListener('DOMContentLoaded', function () {
     // Helper to create table cells
     function createCell(content, label, className = '') {
         const cell = document.createElement('td');
-        cell.innerHTML = content;
+        cell.textContent = content;
         cell.setAttribute('data-label', label);
         if (className) cell.className = className;
         return cell;
     }
 
-    // Create QR code cell with optimized caching
+    // Create QR code cell with unique, scannable codes
     function createQRCodeCell(code) {
         const cell = document.createElement('td');
         cell.className = 'qrcode-cell';
         cell.setAttribute('data-label', 'QR Code');
 
-        // Try to get from cache first
-        const cached = qrCodeCache.get(code);
-        if (cached) {
-            cell.innerHTML = cached;
-            return cell;
-        }
-
-        // Generate new QR code (smaller size)
-        const qr = qrcode(0, 'L');
+        // Generate QR code with error correction
+        const qr = qrcode(0, 'M'); // Medium error correction
         qr.addData(code);
         qr.make();
         
         const container = document.createElement('div');
         container.className = 'qrcode-container';
-        container.innerHTML = qr.createSvgTag(1, 0); // Smaller QR code
+        container.innerHTML = qr.createSvgTag(2, 0);
         
         cell.appendChild(container);
         
@@ -373,19 +336,18 @@ document.addEventListener('DOMContentLoaded', function () {
         selectedItem = item;
     }
 
-    // Show print modal
+    // Show print modal with high-quality QR code
     function showPrintModal() {
         if (!selectedItem) {
             alert('Please select an item first by clicking on a row.');
             return;
         }
 
-        const itemNameFirstLine = selectedItem.name.split('\n')[0].substring(0, 20);
-        printItemName.textContent = itemNameFirstLine;
+        printItemName.textContent = selectedItem.name.split('\n')[0].substring(0, 20);
         printQRCode.textContent = selectedItem.code;
 
-        // Generate QR code for printing (higher quality)
-        const qr = qrcode(0, 'H'); // Higher error correction
+        // Generate high-quality QR code for printing
+        const qr = qrcode(0, 'H'); // High error correction
         qr.addData(selectedItem.code);
         qr.make();
         printQRContainer.innerHTML = qr.createSvgTag(4, 0);
@@ -393,7 +355,7 @@ document.addEventListener('DOMContentLoaded', function () {
         printModal.style.display = 'block';
     }
 
-    // Print QR code
+    // Print QR code sticker
     function printSelectedQRCode() {
         if (!selectedItem) return;
 
@@ -401,7 +363,7 @@ document.addEventListener('DOMContentLoaded', function () {
             <div class="sticker-container">
                 <div class="sticker-name">${selectedItem.name.split('\n')[0].substring(0, 20)}</div>
                 <div class="sticker-qrcode">
-                    ${generateQRCodeSVG(selectedItem.code, 4)}
+                    ${generateQRCodeSVG(selectedItem.code, 4, 'H')}
                 </div>
                 <div class="sticker-code">${selectedItem.code}</div>
             </div>
@@ -431,15 +393,15 @@ document.addEventListener('DOMContentLoaded', function () {
         printWindow.document.close();
     }
 
-    // Generate QR code SVG
-    function generateQRCodeSVG(code, size) {
-        const qr = qrcode(0, 'H');
+    // Generate QR code SVG with configurable size and error correction
+    function generateQRCodeSVG(code, size, errorCorrection = 'M') {
+        const qr = qrcode(0, errorCorrection);
         qr.addData(code);
         qr.make();
         return qr.createSvgTag(size, 0);
     }
 
-    // Scanner functions (unchanged from your original)
+    // Scanner functions
     function toggleScanner() {
         if (scannerActive) {
             stopScanner();
