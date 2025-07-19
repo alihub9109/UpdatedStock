@@ -1,4 +1,4 @@
-document.addEventListener('DOMContentLoaded', function() {
+document.addEventListener('DOMContentLoaded', function () {
     // DOM elements
     const excelFileInput = document.getElementById('excelFile');
     const loadBtn = document.querySelector('.file-input-btn');
@@ -12,7 +12,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const printBtn = document.getElementById('printBtn');
     const printBarcodeSvg = document.getElementById('printBarcode');
     const printBarcodeCode = document.getElementById('printBarcodeCode');
-    
+
     // Scanner elements
     const scanBtn = document.getElementById('scanBtn');
     const scannerModal = document.getElementById('scannerModal');
@@ -36,21 +36,21 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Barcode Cache Manager
     const barcodeCache = {
-        get: function(code) {
+        get: function (code) {
             const cached = localStorage.getItem(`barcode_${code}`);
             return cached ? cached : null;
         },
-        set: function(code, svg) {
+        set: function (code, svg) {
             localStorage.setItem(`barcode_${code}`, svg);
         },
-        clear: function() {
+        clear: function () {
             Object.keys(localStorage).forEach(key => {
                 if (key.startsWith('barcode_')) {
                     localStorage.removeItem(key);
                 }
             });
         },
-        clearExpired: function(maxAgeDays = 30) {
+        clearExpired: function (maxAgeDays = 30) {
             const now = Date.now();
             Object.keys(localStorage).forEach(key => {
                 if (key.startsWith('barcode_')) {
@@ -95,21 +95,21 @@ document.addEventListener('DOMContentLoaded', function() {
         if (!file) return;
 
         const reader = new FileReader();
-        reader.onload = function(e) {
+        reader.onload = function (e) {
             const data = new Uint8Array(e.target.result);
             const workbook = XLSX.read(data, { type: 'array' });
-            
+
             // Get first sheet
             const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
-            
+
             // Convert to JSON
             const jsonData = XLSX.utils.sheet_to_json(firstSheet, { header: ['code', 'name', 'qty', 'reserve'] });
-            
+
             // Remove header row if exists
             if (jsonData[0] && jsonData[0].code === 'Code') {
                 jsonData.shift();
             }
-            
+
             // Process data
             stockData = jsonData.map(item => ({
                 code: item.code?.toString() || '',
@@ -118,7 +118,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 reserve: parseInt(item.reserve) || 0,
                 available: (parseInt(item.qty) || 0) - (parseInt(item.reserve) || 0)
             }));
-            
+
             // Initial render
             filteredData = [...stockData];
             renderTable();
@@ -130,17 +130,17 @@ document.addEventListener('DOMContentLoaded', function() {
     // Filter items based on search input
     function filterItems() {
         const searchTerm = searchInput.value.trim().toLowerCase();
-        
+
         if (!searchTerm) {
             filteredData = [...stockData];
         } else {
-            filteredData = stockData.filter(item => 
+            filteredData = stockData.filter(item =>
                 item.code.toLowerCase().includes(searchTerm)
             );
         }
-        
+
         renderTable();
-        
+
         // Highlight and scroll to the first matching item
         if (filteredData.length > 0) {
             highlightItem(filteredData[0].code);
@@ -151,45 +151,45 @@ document.addEventListener('DOMContentLoaded', function() {
     function renderTable() {
         // Clear existing rows
         stockTableBody.innerHTML = '';
-        
+
         // Create new rows
         filteredData.forEach(item => {
             const row = document.createElement('tr');
             row.dataset.code = item.code;
-            
+
             // Add click event to select row
             row.addEventListener('click', () => {
                 selectRow(row, item);
             });
-            
+
             // Create cells
             const codeCell = document.createElement('td');
             codeCell.textContent = item.code;
-            
+
             const nameCell = document.createElement('td');
             nameCell.innerHTML = item.name.replace(/\n/g, '<br>');
-            
+
             const qtyCell = document.createElement('td');
             qtyCell.textContent = item.qty;
             qtyCell.className = 'numeric';
-            
+
             const reserveCell = document.createElement('td');
             reserveCell.textContent = item.reserve;
             reserveCell.className = 'numeric';
-            
+
             const availableCell = document.createElement('td');
             availableCell.textContent = item.available;
             availableCell.className = 'numeric';
             if (item.available < 0) {
                 availableCell.classList.add('stock-low');
             }
-            
+
             const barcodeCell = document.createElement('td');
             barcodeCell.className = 'barcode-cell';
-            
+
             // Check cache first
             const cachedBarcode = barcodeCache.get(item.code);
-            
+
             if (cachedBarcode) {
                 // Use cached barcode
                 barcodeCell.innerHTML = cachedBarcode;
@@ -197,14 +197,14 @@ document.addEventListener('DOMContentLoaded', function() {
                 // Generate new barcode
                 const barcodeContainer = document.createElement('div');
                 barcodeContainer.className = 'barcode-container';
-                
+
                 const barcodeSvg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
                 barcodeSvg.className = 'barcode';
-                
+
                 const barcodeText = document.createElement('div');
                 barcodeText.className = 'barcode-text';
                 barcodeText.textContent = item.code;
-                
+
                 JsBarcode(barcodeSvg, item.code, {
                     format: 'CODE128',
                     displayValue: false,
@@ -212,15 +212,15 @@ document.addEventListener('DOMContentLoaded', function() {
                     margin: 0,
                     background: 'transparent'
                 });
-                
+
                 barcodeContainer.appendChild(barcodeSvg);
                 barcodeContainer.appendChild(barcodeText);
                 barcodeCell.appendChild(barcodeContainer);
-                
+
                 // Cache the generated barcode
                 barcodeCache.set(item.code, barcodeContainer.outerHTML);
             }
-            
+
             // Append cells to row
             row.appendChild(codeCell);
             row.appendChild(nameCell);
@@ -228,11 +228,11 @@ document.addEventListener('DOMContentLoaded', function() {
             row.appendChild(reserveCell);
             row.appendChild(availableCell);
             row.appendChild(barcodeCell);
-            
+
             // Append row to table
             stockTableBody.appendChild(row);
         });
-        
+
         updateStatus();
     }
 
@@ -242,7 +242,7 @@ document.addEventListener('DOMContentLoaded', function() {
         document.querySelectorAll('#stockTableBody tr').forEach(row => {
             row.classList.remove('highlight');
         });
-        
+
         // Add highlight to matching row
         const row = document.querySelector(`#stockTableBody tr[data-code="${code}"]`);
         if (row) {
@@ -257,101 +257,95 @@ document.addEventListener('DOMContentLoaded', function() {
         document.querySelectorAll('#stockTableBody tr').forEach(r => {
             r.classList.remove('selected');
         });
-        
+
         // Add selection to clicked row
         row.classList.add('selected');
         selectedItem = item;
     }
 
     // Show print modal
-    // Updated showPrintModal() function
-function showPrintModal() {
-    if (!selectedItem) {
-        alert('Please select an item first by clicking on a row.');
-        return;
-    }
-    
-    // Create a clean first line of the item name (remove line breaks)
-    const itemNameFirstLine = selectedItem.name.split('\n')[0];
-    printBarcodeCode.textContent = selectedItem.code;
-    
-    // Update the modal content to show item name instead of "Product Barcode"
-    const printBarcodeContainer = document.querySelector('.print-barcode-container');
-    printBarcodeContainer.innerHTML = `
-        <div style="margin-bottom: 10px;">
-            <div style="font-weight: 500; font-size: 0.9rem;">${itemNameFirstLine}</div>
-        </div>
+    function showPrintModal() {
+        if (!selectedItem) {
+            alert('Please select an item first by clicking on a row.');
+            return;
+        }
+
+        const itemNameFirstLine = selectedItem.name.split('\n')[0].substring(0, 20); // Limit to 20 chars
+        printBarcodeCode.textContent = selectedItem.code;
+
+        document.querySelector('.print-barcode-container').innerHTML = `
+        <div class="print-barcode-label">${itemNameFirstLine}</div>
         <div class="print-barcode-sticker">
-            <svg id="printBarcode" width="200" height="60"></svg>
+            <svg id="printBarcode"></svg>
             <div class="print-barcode-code">${selectedItem.code}</div>
         </div>
     `;
-    
-    // Reinitialize the barcode SVG element
-    const newPrintBarcode = printBarcodeContainer.querySelector('#printBarcode');
-    JsBarcode(newPrintBarcode, selectedItem.code, {
-        format: 'CODE128',
-        displayValue: false,
-        height: 50,
-        margin: 0,
-        background: 'transparent'
-    });
-    
-    printModal.style.display = 'block';
-}
 
-// Updated printBarcode() function to include the name
-function printBarcode() {
-    const itemNameFirstLine = selectedItem.name.split('\n')[0];
-    const printContent = `
-        <div style="text-align: center; margin-bottom: 5px; font-size: 12px;">
-            ${itemNameFirstLine}
-        </div>
-        <div class="print-barcode-sticker">
-            <svg width="200" height="60">
-                ${printBarcodeSvg.innerHTML}
-            </svg>
-            <div class="print-barcode-code">${printBarcodeCode.textContent}</div>
+        JsBarcode('#printBarcode', selectedItem.code, {
+            format: 'CODE128',
+            displayValue: false,
+            height: 30, // Reduced height for small labels
+            margin: 0,
+            background: 'transparent'
+        });
+
+        printModal.style.display = 'block';
+    }
+
+    // Updated printBarcode() function
+    function printBarcode() {
+        const itemNameFirstLine = selectedItem.name.split('\n')[0].substring(0, 20);
+        const printContent = `
+        <div class="sticker-container">
+            <div class="sticker-name">${itemNameFirstLine}</div>
+            <svg class="sticker-barcode">${printBarcodeSvg.innerHTML}</svg>
+            <div class="sticker-code">${selectedItem.code}</div>
         </div>
     `;
-    
-    const printWindow = window.open('', '_blank');
-    printWindow.document.write(`
+
+        const printWindow = window.open('', '_blank');
+        printWindow.document.write(`
         <!DOCTYPE html>
         <html>
         <head>
-            <title>Print Barcode</title>
+            <title>Barcode Sticker</title>
             <style>
                 @page {
-                    size: 50mm 30mm;
+                    size: 40mm 23mm;
                     margin: 0;
                 }
                 body {
                     margin: 0;
-                    padding: 5px;
+                    padding: 0;
+                    width: 40mm;
+                    height: 23mm;
                     display: flex;
-                    flex-direction: column;
                     justify-content: center;
                     align-items: center;
-                    height: 100vh;
                     font-family: Arial, sans-serif;
                 }
-                .print-barcode-sticker {
-                    display: flex;
-                    flex-direction: column;
-                    align-items: center;
-                    justify-content: center;
-                    width: 100%;
-                }
-                .print-barcode-sticker svg {
-                    width: 100%;
-                    height: auto;
-                }
-                .print-barcode-code {
-                    font-family: 'Courier New', monospace;
-                    font-size: 10px;
+                .sticker-container {
                     text-align: center;
-                    margin-top: 3px;
+                    width: 100%;
+                    padding: 1mm;
+                    box-sizing: border-box;
+                }
+                .sticker-name {
+                    font-size: 8px;
+                    font-weight: bold;
+                    margin-bottom: 1mm;
+                    white-space: nowrap;
+                    overflow: hidden;
+                    text-overflow: ellipsis;
+                }
+                .sticker-barcode {
+                    width: 100% !important;
+                    height: 15mm !important;
+                }
+                .sticker-code {
+                    font-size: 7px;
+                    font-family: 'Courier New', monospace;
+                    margin-top: 0.5mm;
                 }
             </style>
         </head>
@@ -362,14 +356,14 @@ function printBarcode() {
                     setTimeout(function() {
                         window.print();
                         window.close();
-                    }, 200);
+                    }, 100);
                 };
             </script>
         </body>
         </html>
     `);
-    printWindow.document.close();
-}
+        printWindow.document.close();
+    }
 
     // Toggle scanner
     function toggleScanner() {
@@ -386,23 +380,23 @@ function printBarcode() {
     function startScanner() {
         scannerActive = true;
         scannerResult.style.display = 'none';
-        
-        navigator.mediaDevices.getUserMedia({ 
-            video: { 
+
+        navigator.mediaDevices.getUserMedia({
+            video: {
                 facingMode: 'environment',
                 width: { ideal: 1280 },
                 height: { ideal: 720 }
-            } 
-        }).then(function(s) {
+            }
+        }).then(function (s) {
             stream = s;
             scannerVideo.srcObject = stream;
             scannerVideo.play();
-            
+
             // Check for torch support
             if ('torch' in stream.getVideoTracks()[0].getSettings()) {
                 toggleTorch.style.display = 'flex';
             }
-            
+
             // Initialize QuaggaJS
             Quagga.init({
                 inputStream: {
@@ -419,20 +413,20 @@ function printBarcode() {
                     readers: ["code_128_reader"]
                 },
                 locate: true
-            }, function(err) {
+            }, function (err) {
                 if (err) {
                     console.error(err);
                     return;
                 }
                 Quagga.start();
             });
-            
-            Quagga.onDetected(function(result) {
+
+            Quagga.onDetected(function (result) {
                 const code = result.codeResult.code;
                 stopScanner();
                 showScannerResult(code);
             });
-        }).catch(function(err) {
+        }).catch(function (err) {
             console.error("Error accessing camera: ", err);
             alert("Could not access the camera. Please check permissions.");
             scannerActive = false;
@@ -459,7 +453,7 @@ function printBarcode() {
             if (track.getCapabilities().torch) {
                 torchOn = !torchOn;
                 track.applyConstraints({
-                    advanced: [{torch: torchOn}]
+                    advanced: [{ torch: torchOn }]
                 }).catch(e => console.error(e));
             }
         }
@@ -468,18 +462,18 @@ function printBarcode() {
     // Show scanner result
     function showScannerResult(code) {
         const item = stockData.find(item => item.code === code);
-        
+
         if (item) {
             scannerCode.textContent = item.code;
             scannerName.textContent = item.name.split('\n')[0];
             scannerQty.textContent = item.qty;
             scannerReserve.textContent = item.reserve;
-            
+
             // Highlight in table
             searchInput.value = code;
             filterItems();
             highlightItem(code);
-            
+
             scannerResult.style.display = 'block';
         } else {
             alert('Product not found with code: ' + code);
@@ -503,7 +497,7 @@ function printBarcode() {
             { code: 'TC-1004', name: 'Wall Tile\nGreen 20x25cm', qty: 120, reserve: 30, available: 90 },
             { code: 'TC-1005', name: 'Floor Tile\nGray 45x45cm', qty: 90, reserve: 15, available: 75 }
         ];
-        
+
         filteredData = [...stockData];
         renderTable();
     }
