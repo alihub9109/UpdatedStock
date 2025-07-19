@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TilesPro - Stock Management</title>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap">
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="app-container">
+        <header class="app-header">
+            <div class="app-title">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+                </svg>
+                <span>TilesPro Stock Management</span>
+            </div>
+            <div class="file-input-container">
+                <button class="file-input-btn secondary-btn">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                    </svg>
+                    Load Excel
+                </button>
+                <input type="file" id="excelFile" accept=".xlsx,.xls" />
+            </div>
+        </header>
+
+        <div class="search-container">
+            <div class="search-input-container">
+                <svg class="search-icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                </svg>
+                <input type="text" id="searchInput" placeholder="Search by code or scan barcode..." autofocus>
+            </div>
+            <button id="scanBtn" class="action-btn secondary-btn">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+                </svg>
+                Scan
+            </button>
+            <button id="printSelected" class="action-btn primary-btn">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+                </svg>
+                Print Barcode
+            </button>
+        </div>
+
+        <div class="table-container">
+            <table id="stockTable">
+                <thead>
+                    <tr>
+                        <th>Code</th>
+                        <th>Product Name</th>
+                        <th class="numeric">QTY</th>
+                        <th class="numeric">Reserve</th>
+                        <th class="numeric">Available</th>
+                        <th>Barcode</th>
+                    </tr>
+                </thead>
+                <tbody id="stockTableBody">
+                    <!-- Data will be loaded here -->
+                </tbody>
+            </table>
+        </div>
+
+        <div class="status-bar">
+            <span id="itemCount">0 items loaded</span>
+            <span id="lastUpdated"></span>
+        </div>
+    </div>
+
+    <!-- Barcode Print Modal -->
+    <div id="printModal" class="print-modal">
+        <div class="print-modal-content">
+            <div class="print-modal-header">
+                <div class="print-modal-title">Print Barcode Sticker</div>
+                <button class="close-btn">&times;</button>
+            </div>
+            <div class="print-barcode-container">
+                <div class="print-barcode-label">Product Barcode</div>
+                <div class="print-barcode-sticker">
+                    <svg id="printBarcode" width="200" height="60"></svg>
+                    <div class="print-barcode-code" id="printBarcodeCode"></div>
+                </div>
+            </div>
+            <button id="printBtn" class="action-btn primary-btn" style="width: 100%;">
+                Print Sticker
+            </button>
+        </div>
+    </div>
+
+    <!-- Barcode Scanner Modal -->
+    <div id="scannerModal" class="scanner-modal">
+        <div class="scanner-container">
+            <video id="scanner-video" playsinline></video>
+            <div class="scanner-overlay"></div>
+            <div class="scanner-controls">
+                <button id="closeScanner" class="scanner-btn">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                </button>
+                <button id="toggleTorch" class="scanner-btn" style="display: none;">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+                    </svg>
+                </button>
+            </div>
+            <div class="scanner-result" id="scannerResult">
+                <div class="scanner-result-header">
+                    <div class="scanner-result-title">Product Information</div>
+                    <button id="closeScannerResult" class="close-btn">&times;</button>
+                </div>
+                <div class="scanner-result-content">
+                    <div class="scanner-result-item">
+                        <div class="scanner-result-label">Code</div>
+                        <div class="scanner-result-value" id="scannerCode">-</div>
+                    </div>
+                    <div class="scanner-result-item">
+                        <div class="scanner-result-label">Name</div>
+                        <div class="scanner-result-value" id="scannerName">-</div>
+                    </div>
+                    <div class="scanner-result-item">
+                        <div class="scanner-result-label">Quantity</div>
+                        <div class="scanner-result-value" id="scannerQty">-</div>
+                    </div>
+                    <div class="scanner-result-item">
+                        <div class="scanner-result-label">Reserved</div>
+                        <div class="scanner-result-value" id="scannerReserve">-</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/quagga@0.12.1/dist/quagga.min.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>
