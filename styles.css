@@ -1,3 +1,4 @@
+/* Base Font Scaling */
 html {
     font-size: 16px;
 }
@@ -14,7 +15,7 @@ html {
     }
 }
 
-
+/* Color Variables */
 :root {
     --primary: #4F46E5;
     --primary-dark: #4338CA;
@@ -25,6 +26,7 @@ html {
     --gray: #6B7280;
 }
 
+/* Reset and Base Styles */
 * {
     box-sizing: border-box;
     margin: 0;
@@ -37,6 +39,7 @@ body {
     color: var(--dark);
 }
 
+/* Main App Container */
 .app-container {
     max-width: 1200px;
     margin: 0 auto;
@@ -47,7 +50,7 @@ body {
     min-height: 100vh;
 }
 
-/* Modern Header */
+/* Header Styles */
 .app-header {
     background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
     color: white;
@@ -71,7 +74,7 @@ body {
     height: 28px;
 }
 
-/* File Input Styling */
+/* File Input Styles */
 .file-input-container {
     position: relative;
     display: inline-block;
@@ -130,19 +133,16 @@ body {
 .search-icon {
     position: absolute;
     left: 0.75rem;
-    /* Reduced from 1rem */
     top: 50%;
     transform: translateY(-50%);
     color: var(--gray);
     width: 16px;
-    /* Added fixed width */
     height: 16px;
-    /* Added fixed height */
 }
 
 #searchInput {
     width: 100%;
-    padding: 0.75rem 1rem 0.75rem 2rem; 
+    padding: 0.75rem 1rem 0.75rem 2rem;
     border: 1px solid #E5E7EB;
     border-radius: 8px;
     font-size: 0.95rem;
@@ -156,14 +156,7 @@ body {
     box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.2);
 }
 
-.search-icon {
-    position: absolute;
-    left: 1rem;
-    top: 50%;
-    transform: translateY(-50%);
-    color: var(--gray);
-}
-
+/* Action Buttons */
 .action-btn {
     display: flex;
     align-items: center;
@@ -280,7 +273,7 @@ tr.selected {
     border-top: 1px solid #E5E7EB;
 }
 
-/* Barcode Print Modal */
+/* Modal Styles */
 .print-modal {
     display: none;
     position: fixed;
@@ -331,15 +324,26 @@ tr.selected {
 .print-barcode-label {
     font-weight: 500;
     margin-bottom: 0.5rem;
+    font-size: 14px;
+    text-align: center;
+    max-width: 100%;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 .print-barcode-code {
-    font-family: 'Roboto Mono', monospace;
+    font-family: 'Courier New', monospace;
     color: var(--gray);
     margin-top: 0.5rem;
 }
 
-/* Camera Scanner Modal */
+.print-barcode-sticker svg {
+    width: 100%;
+    height: auto;
+}
+
+/* Scanner Modal */
 .scanner-modal {
     display: none;
     position: fixed;
@@ -447,9 +451,7 @@ tr.selected {
     font-weight: 500;
 }
 
-/* Add this at the top of your CSS */
-
-/* Replace your existing media queries with these */
+/* Responsive Breakpoints */
 @media (max-width: 1024px) {
     .app-container {
         border-radius: 0;
@@ -495,6 +497,52 @@ tr.selected {
     
     .barcode-cell {
         width: 120px;
+    }
+}
+
+@media (max-width: 640px) {
+    .table-container.mobile-view table {
+        display: block;
+    }
+    
+    .table-container.mobile-view thead {
+        display: none;
+    }
+    
+    .table-container.mobile-view tr {
+        display: block;
+        margin-bottom: 1rem;
+        border: 1px solid #E5E7EB;
+        border-radius: 8px;
+        padding: 0.5rem;
+    }
+    
+    .table-container.mobile-view td {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 0.5rem;
+        border-bottom: 1px solid #f0f0f0;
+    }
+    
+    .table-container.mobile-view td::before {
+        content: attr(data-label);
+        font-weight: 600;
+        margin-right: 1rem;
+        color: var(--gray);
+        font-size: 0.8rem;
+    }
+    
+    .table-container.mobile-view td:last-child {
+        border-bottom: none;
+    }
+    
+    .table-container.mobile-view .barcode-cell {
+        justify-content: center;
+    }
+    
+    .table-container.mobile-view .barcode-container {
+        margin: 0 auto;
     }
 }
 
@@ -566,49 +614,27 @@ tr.selected {
     }
 }
 
-/* Add this for better table responsiveness */
-@media (max-width: 640px) {
-    table {
-        display: block;
+/* Print Styles */
+@media print {
+    body * {
+        visibility: hidden;
     }
-    
-    thead {
-        display: none;
+    .print-barcode-sticker, .print-barcode-sticker * {
+        visibility: visible;
     }
-    
-    tr {
-        display: block;
-        margin-bottom: 1rem;
-        border: 1px solid #E5E7EB;
-        border-radius: 8px;
-    }
-    
-    td {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        padding: 0.5rem 1rem;
-        border-bottom: 1px solid #E5E7EB;
-    }
-    
-    td::before {
-        content: attr(data-label);
-        font-weight: 600;
-        margin-right: 1rem;
-        color: var(--gray);
-    }
-    
-    td:last-child {
-        border-bottom: none;
-    }
-    
-    .barcode-cell {
+    .print-barcode-sticker {
+        position: absolute;
+        left: 0;
+        top: 0;
         width: 100%;
-        text-align: center;
+        height: 100%;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
     }
-    
-    .barcode-container {
-        margin: 0 auto;
+    .print-barcode-sticker svg {
+        width: 100% !important;
+        height: auto !important;
     }
 }
-
