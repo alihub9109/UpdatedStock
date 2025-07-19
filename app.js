@@ -162,30 +162,36 @@ document.addEventListener('DOMContentLoaded', function () {
                 selectRow(row, item);
             });
 
-            // Create cells
+            // Create cells with data-label attributes
             const codeCell = document.createElement('td');
             codeCell.textContent = item.code;
+            codeCell.setAttribute('data-label', 'Code');
 
             const nameCell = document.createElement('td');
             nameCell.innerHTML = item.name.replace(/\n/g, '<br>');
+            nameCell.setAttribute('data-label', 'Product');
 
             const qtyCell = document.createElement('td');
             qtyCell.textContent = item.qty;
             qtyCell.className = 'numeric';
+            qtyCell.setAttribute('data-label', 'QTY');
 
             const reserveCell = document.createElement('td');
             reserveCell.textContent = item.reserve;
             reserveCell.className = 'numeric';
+            reserveCell.setAttribute('data-label', 'Reserve');
 
             const availableCell = document.createElement('td');
             availableCell.textContent = item.available;
             availableCell.className = 'numeric';
+            availableCell.setAttribute('data-label', 'Available');
             if (item.available < 0) {
                 availableCell.classList.add('stock-low');
             }
 
             const barcodeCell = document.createElement('td');
             barcodeCell.className = 'barcode-cell';
+            barcodeCell.setAttribute('data-label', 'Barcode');
 
             // Check cache first
             const cachedBarcode = barcodeCache.get(item.code);
@@ -194,7 +200,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 // Use cached barcode
                 barcodeCell.innerHTML = cachedBarcode;
             } else {
-                // Generate new barcode
+                // Generate new barcode (with responsive sizing)
                 const barcodeContainer = document.createElement('div');
                 barcodeContainer.className = 'barcode-container';
 
@@ -208,7 +214,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 JsBarcode(barcodeSvg, item.code, {
                     format: 'CODE128',
                     displayValue: false,
-                    height: 40,
+                    height: window.innerWidth < 768 ? 30 : 40, // Smaller on mobile
                     margin: 0,
                     background: 'transparent'
                 });
@@ -233,8 +239,23 @@ document.addEventListener('DOMContentLoaded', function () {
             stockTableBody.appendChild(row);
         });
 
+        // Add responsive class to table container if mobile
+        const tableContainer = document.querySelector('.table-container');
+        if (window.innerWidth < 640) {
+            tableContainer.classList.add('mobile-view');
+        } else {
+            tableContainer.classList.remove('mobile-view');
+        }
+
         updateStatus();
     }
+
+    // Add window resize listener to handle responsiveness
+    window.addEventListener('resize', function () {
+        if (stockTableBody.innerHTML) {
+            renderTable(); // Re-render on resize to adjust barcode sizes
+        }
+    });
 
     // Highlight a specific item
     function highlightItem(code) {
