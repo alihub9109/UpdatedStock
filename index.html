@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>TilesPro - Stock Management</title>
+    <script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.min.js"></script>
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap">
     <link rel="stylesheet" href="styles.css">
 </head>
@@ -32,7 +33,7 @@
                 <svg class="search-icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                 </svg>
-                <input type="text" id="searchInput" placeholder="Search by code or scan barcode..." autofocus>
+                <input type="text" id="searchInput" placeholder="Search by code or name (use % as wildcard)..." autofocus>
             </div>
             <button id="scanBtn" class="action-btn secondary-btn">
                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -45,7 +46,7 @@
                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
                 </svg>
-                Print Barcode
+                Print QR Code
             </button>
         </div>
 
@@ -58,7 +59,7 @@
                         <th class="numeric">QTY</th>
                         <th class="numeric">Reserve</th>
                         <th class="numeric">Available</th>
-                        <th>Barcode</th>
+                        <th>QR Code</th>
                     </tr>
                 </thead>
                 <tbody id="stockTableBody">
@@ -73,19 +74,17 @@
         </div>
     </div>
 
-    <!-- Barcode Print Modal -->
+    <!-- QR Code Print Modal -->
     <div id="printModal" class="print-modal">
         <div class="print-modal-content">
             <div class="print-modal-header">
-                <div class="print-modal-title">Print Barcode Sticker</div>
+                <div class="print-modal-title">Print QR Code Sticker</div>
                 <button class="close-btn">&times;</button>
             </div>
-            <div class="print-barcode-container">
-                <div class="print-barcode-label">Product Barcode</div>
-                <div class="print-barcode-sticker">
-                    <svg id="printBarcode" width="200" height="60"></svg>
-                    <div class="print-barcode-code" id="printBarcodeCode"></div>
-                </div>
+            <div class="print-qrcode-container">
+                <div class="print-qrcode-label" id="printItemName"></div>
+                <div class="print-qrcode-sticker" id="printQRContainer"></div>
+                <div class="print-qrcode-code" id="printQRCode"></div>
             </div>
             <button id="printBtn" class="action-btn primary-btn" style="width: 100%;">
                 Print Sticker
@@ -93,7 +92,7 @@
         </div>
     </div>
 
-    <!-- Barcode Scanner Modal -->
+    <!-- QR Code Scanner Modal -->
     <div id="scannerModal" class="scanner-modal">
         <div class="scanner-container">
             <video id="scanner-video" playsinline></video>
@@ -138,7 +137,6 @@
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/quagga@0.12.1/dist/quagga.min.js"></script>
     <script src="app.js"></script>
 </body>
